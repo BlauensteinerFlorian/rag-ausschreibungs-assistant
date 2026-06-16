@@ -3,3 +3,4 @@ pypdf
 numpy
 pydantic
 python-dotenv
+streamlit
