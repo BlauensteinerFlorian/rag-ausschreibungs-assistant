@@ -11,7 +11,7 @@ Verwendung:
 
 import os
 from dotenv import load_dotenv
-from mistralai import Mistral
+from mistralai.client import Mistral
 
 load_dotenv()
 
@@ -36,42 +36,42 @@ print(f"   System: {system_prompt}")
 print(f"   User:   {user_message}")
 print("=" * 60)
 
-# Variante A: neutral (temperature=0.7)
-print("\n─── Variante A: temperature=0.7 (kreativer) ───")
+# Variante A: kreativ (temperature=1.0)
+print("\n─── Variante A: temperature=1.0 (kreativ) ───")
 response = client.chat.complete(
     model="mistral-small-latest",
     messages=[
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_message},
     ],
-    temperature=0.7,
+    temperature=1.0,
     max_tokens=300,
 )
 print(response.choices[0].message.content)
 print(f"\n   Tokens: {response.usage}")
 
-# Variante B: nüchtern (temperature=0.1)
-print("\n\n─── Variante B: temperature=0.1 (faktischer) ───")
+# Variante B: deterministisch (temperature=0)
+print("\n\n─── Variante B: temperature=0 (deterministisch) ───")
 response = client.chat.complete(
     model="mistral-small-latest",
     messages=[
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_message},
     ],
-    temperature=0.1,
+    temperature=0,
     max_tokens=300,
 )
 print(response.choices[0].message.content)
 print(f"\n   Tokens: {response.usage}")
 
-# Variante C: ohne System-Prompt
-print("\n\n─── Variante C: ohne System-Prompt ───")
+# Variante C: ohne System-Prompt (temperature=0)
+print("\n\n─── Variante C: ohne System-Prompt (temperature=0) ───")
 response = client.chat.complete(
     model="mistral-small-latest",
     messages=[
         {"role": "user", "content": user_message},
     ],
-    temperature=0.1,
+    temperature=0,
     max_tokens=300,
 )
 print(response.choices[0].message.content)
