@@ -253,20 +253,38 @@ def execute_tool(tool_name: str, arguments: dict) -> str:
 # Agenten-Schleife
 # ═══════════════════════════════════════════════════════════════
 
+# ─── Grounding-System-Prompt (aus Phase 4 übernommen) ──────────
+# WICHTIG: Ohne diese Regeln halluziniert das Modell frei.
+# System-Prompts sind keine Magie — es sind Text-Regeln, wie "antworte
+# auf Deutsch". Grounding-Regeln sind nur strenger und zwingen das
+# Modell, NUR aus gegebenem Kontext zu schöpfen.
+#
+# Der Prompt kombiniert hier Grounding + Tool-Nutzung:
+# 1. Nur aus Kontext oder Tool-Ergebnissen antworten
+# 2. Wenn Info fehlt → ehrlich zugeben
+# 3. Quellen nennen
 SYSTEM_PROMPT = (
     "Du bist ein Assistent für öffentliche Ausschreibungen. "
     "Du hast Zugriff auf Tools, um Informationen aus Ausschreibungsdokumenten "
-    "zu extrahieren und zu filtern. "
-    "Nutze die Tools, wenn sie helfen, die Frage besser zu beantworten. "
-    "Wenn du ein Tool aufrufst, warte auf das Ergebnis, bevor du antwortest. "
-    "Antworte präzise und auf Deutsch."
+    "zu extrahieren und zu filtern.\n\n"
+    "WICHTIGE REGELN (Grounding):\n"
+    "1. Antworte NUR mit Informationen, die entweder im KONTEXT (Auszüge aus "
+    "   dem Dokument) stehen ODER die du über ein Tool-Ergebnis erhalten hast.\n"
+    "2. Wenn die Antwort weder im Kontext noch in Tool-Ergebnissen zu finden "
+    "   ist, sage klar: 'Diese Information steht nicht in den vorliegenden "
+    "   Dokumenten.'\n"
+    "3. Erfinde KEINE Informationen hinzu. Kein Allgemeinwissen verwenden.\n"
+    "4. Gib nach deiner Antwort an, aus welchen Quellen die Info stammt "
+    "   (z.B. [Quelle: Kontext] oder [Quelle: Tool suche_in_chunks]).\n"
+    "5. Antworte präzise und auf Deutsch."
 )
 
 
-def agent_loop(user_question: str) -> str:
+def agent_loop(user_question: str, top_k: int = TOP_K) -> str:
     """
-    Die Agenten-Schleife:
-    1. Frage + Tools an das Modell schicken
+    Die Agenten-Schleife mit Grounding:
+    0. RAG: Top-k Chunks zur Frage finden → als Kontext in Prompt einbauen
+    1. Frage + Kontext + Tools an das Modell schicken
     2a. Modell antwortet direkt → fertig
     2b. Modell will Tool aufrufen → Tool ausführen → Ergebnis zurück → Schritt 1
     
@@ -274,10 +292,31 @@ def agent_loop(user_question: str) -> str:
     """
     global _current_chunks, _current_chunk_vecs
 
+    # Schritt 0: RAG — relevante Chunks zur Frage finden
+    # Dadurch hat das Modell IMMER Dokument-Kontext und kann nicht
+    # halluzinieren (Grounding-Regeln im System-Prompt greifen jetzt).
+    retrieved = retrieve_chunks(user_question, _current_chunk_vecs, _current_chunks, top_k=top_k)
+    context_parts = []
+    for score, chunk in retrieved:
+        context_parts.append(
+            f"[Chunk {chunk['chunk_id']} | Score: {score:.3f}]\n{chunk['text']}"
+        )
+    context_text = "\n\n---\n\n".join(context_parts)
+
+    # User-Prompt mit eingebettetem Kontext (wie in Phase 4)
+    grounded_question = f"""KONTEXT (Auszüge aus dem Ausschreibungsdokument):
+---
+{context_text}
+---
+
+FRAGE:
+{user_question}"""
+
     # Nachrichten-Historie für diese Frage
+    # Die erste User-Nachricht enthält den Kontext + die Frage
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": user_question},
+        {"role": "user", "content": grounded_question},
     ]
 
     for runde in range(5):  # Max 5 Runden (safety limit)
