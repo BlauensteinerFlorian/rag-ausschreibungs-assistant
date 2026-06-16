@@ -20,6 +20,9 @@ build/
 .DS_Store
 Thumbs.db
 
+# Project context (local only, not pushed)
+PROJECT_PLAN.md
+
 # Project data
 data/pdfs/
 data/chunks/
