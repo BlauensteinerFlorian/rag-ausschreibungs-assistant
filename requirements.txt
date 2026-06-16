@@ -1,0 +1,5 @@
+mistralai
+pypdf
+numpy
+pydantic
+python-dotenv
